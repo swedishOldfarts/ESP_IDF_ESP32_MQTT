@@ -1,5 +1,0 @@
-source "G:/temp/ESP32/espressifstuff/components/efuse/Kconfig"
-source "G:/temp/ESP32/espressifstuff/components/esp32s2/Kconfig"
-source "G:/temp/ESP32/espressifstuff/components/esp_common/Kconfig"
-source "G:/temp/ESP32/espressifstuff/components/log/Kconfig"
-source "G:/temp/ESP32/espressifstuff/components/spi_flash/Kconfig"
