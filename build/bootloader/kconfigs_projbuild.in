@@ -1,0 +1,3 @@
+source "G:/temp/ESP32/espressifstuff/components/bootloader/Kconfig.projbuild"
+source "G:/temp/ESP32/espressifstuff/components/esptool_py/Kconfig.projbuild"
+source "G:/temp/ESP32/espressifstuff/components/partition_table/Kconfig.projbuild"

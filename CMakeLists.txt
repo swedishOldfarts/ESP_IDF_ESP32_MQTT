@@ -4,9 +4,11 @@ cmake_minimum_required(VERSION 3.5)
 
 # (Not part of the boilerplate)
 # This example uses an extra component for common functions such as Wi-Fi and Ethernet connection.
-set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
+#set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
+
+list(APPEND EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common  ${CMAKE_CURRENT_SOURCE_DIR}/../esp-idf-lib/components) 
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(ESP32_MQTT_TLS)
+project(esp32_mqtt_tls)
 
-target_add_binary_data(ESP32_MQTT_TLS.elf "main/isrgrootx1.pem" TEXT)
+target_add_binary_data(esp32_mqtt_tls.elf "main/isrgrootx1.pem" TEXT)

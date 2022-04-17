@@ -48,14 +48,36 @@
 #include "lwip/dns.h"
 
 #include "esp_tls.h"
-#include "esp_crt_bundle.h"
+//#include "esp_crt_bundle.h"
 
 #include "mqtt_client.h"
+//don't forget to add BME680 libraries directory in Makefile, I used UncleRus esp-idf-lib
+#include <bme680.h>
+//--------------------------------------------------------------------------------------
+/* Constants that aren't configurable in menuconfig */
+/*#define WEB_SERVER "www.howsmyssl.com"
+#define WEB_PORT "443"
+#define WEB_URL "https://www.howsmyssl.com/a/check"
+*/
 
-/* The examples use WiFi configuration that you can set via project configuration menu
+#define WEB_SERVER "www.twilio.com"
+#define WEB_PORT "443"
+#define WEB_URL "https://api.twilio.com"
 
-   If you'd rather not, just change the below entries to strings with
-   the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
+//static const char *TAG = "example";
+
+static const char *REQUEST = "GET " WEB_URL " HTTP/1.0\r\n"
+    "Host: "WEB_SERVER"\r\n"
+    "User-Agent: esp-idf/1.0 esp32\r\n"
+    "\r\n";
+//-------------------------------------------------------------------------------------
+/*  Three option to populate WiFi configuration 
+    1)you can set via project configuration menu
+    2)defines in here or 3) defines in a header file(just include the headerfile)
+
+    Just include the below entries to strings with
+   the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid" if you don't want to
+   deal with header file.
 */
 //#define EXAMPLE_ESP_WIFI_SSID      
 //#define EXAMPLE_ESP_WIFI_PASS      
@@ -71,7 +93,9 @@ static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_FAIL_BIT      BIT1
 
 static const char *TAG = "wifi station";
+static const char *TAG2 = "MQTT";
 
+//single certificate(ISR root cert) to connect to HIVE cloud broker. Have not tested for public brokers
 #if CONFIG_BROKER_CERTIFICATE_OVERRIDDEN == 1
 static const uint8_t isrgrootx1_pem_start[]  = "-----BEGIN CERTIFICATE-----\n" CONFIG_BROKER_CERTIFICATE_OVERRIDE "\n-----END CERTIFICATE-----";
 #else
@@ -103,17 +127,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-/* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "www.howsmyssl.com"
-#define WEB_PORT "443"
-#define WEB_URL "https://www.howsmyssl.com/a/check"
-
-//static const char *TAG = "example";
-
-static const char *REQUEST = "GET " WEB_URL " HTTP/1.0\r\n"
-    "Host: "WEB_SERVER"\r\n"
-    "User-Agent: esp-idf/1.0 esp32\r\n"
-    "\r\n";
 
 void wifi_init_sta(void)
 {
@@ -147,7 +160,7 @@ void wifi_init_sta(void)
             /* Setting a password implies station will connect to all security modes including WEP/WPA.
              * However these modes are deprecated and not advisable to be used. Incase your Access point
              * doesn't support WPA2, these mode can be enabled by commenting below line */
-	     .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+	        .threshold.authmode = WIFI_AUTH_WPA2_PSK,
 
             .pmf_cfg = {
                 .capable = true,
@@ -187,7 +200,7 @@ void wifi_init_sta(void)
     vEventGroupDelete(s_wifi_event_group);
 }
 
-
+/*
 static void https_get_task(void *pvParameters)
 {
     char buf[512];
@@ -246,7 +259,7 @@ static void https_get_task(void *pvParameters)
 
             len = ret;
             ESP_LOGD(TAG, "%d bytes read", len);
-            /* Print response directly to stdout as it is read */
+            // Print response directly to stdout as it is read 
             for(int i = 0; i < len; i++) {
                 putchar(buf[i]);
             }
@@ -267,31 +280,119 @@ static void https_get_task(void *pvParameters)
     }
 }
 
+*/
+
+void print_mqtt(bme680_values_float_t *valess)
+{
+    printf("BME680 Sensor again: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm\n",
+                        valess->temperature, valess->humidity, valess->pressure, valess->gas_resistance);
+
+    return;
+}
+
+//details for i2c connection is in menuconfig (via Kconfig.projbuild file if you want to use different GPIOs)
+#define PORT 0
+#if defined(CONFIG_EXAMPLE_I2C_ADDRESS_0)
+#define ADDR BME680_I2C_ADDR_0
+#endif
+#if defined(CONFIG_EXAMPLE_I2C_ADDRESS_1)
+#define ADDR BME680_I2C_ADDR_1
+#endif
+
+#ifndef APP_CPU_NUM
+#define APP_CPU_NUM PRO_CPU_NUM
+#endif
+
+#define BME_SENSOR_TOPIC "BME680_3"
+
+void bme680_test(void *pvParameters)
+{
+    char tempp[1280];
+    bme680_t sensor;
+    memset(&sensor, 0, sizeof(bme680_t));
+
+    esp_mqtt_client_handle_t clienta = pvParameters;
+
+    printf("SCL: %i , SDA: %i, address: %x, port:%i\n",
+           CONFIG_EXAMPLE_I2C_MASTER_SCL, CONFIG_EXAMPLE_I2C_MASTER_SDA, ADDR, PORT);
+
+    sensor.i2c_dev.cfg.scl_pullup_en = true;
+    sensor.i2c_dev.cfg.sda_pullup_en = true;
+
+    ESP_ERROR_CHECK(bme680_init_desc(&sensor, ADDR, PORT, CONFIG_EXAMPLE_I2C_MASTER_SDA, CONFIG_EXAMPLE_I2C_MASTER_SCL));
+        
+    // init the sensor
+    ESP_ERROR_CHECK(bme680_init_sensor(&sensor));
+
+    // Changes the oversampling rates to 4x oversampling for temperature and pressure
+    // and 2x oversampling for humidity. 
+    bme680_set_oversampling_rates(&sensor, BME680_OSR_4X, BME680_OSR_4X, BME680_OSR_2X);
+
+    // Change the IIR filter size for temperature and pressure to 7.
+    bme680_set_filter_size(&sensor, BME680_IIR_SIZE_7);
+
+    // Change the heater profile 0 to 200 degree Celsius for 100 ms.
+    bme680_set_heater_profile(&sensor, 0, 200, 100);
+    bme680_use_heater_profile(&sensor, 0);
+
+    // Set ambient temperature to 10 degree Celsius
+    bme680_set_ambient_temperature(&sensor, 19);
+
+    // as long as sensor configuration isn't changed, duration is constant
+    uint32_t duration;
+    bme680_get_measurement_duration(&sensor, &duration);
+
+    TickType_t last_wakeup = xTaskGetTickCount();
+
+
+    bme680_values_float_t values;
+    while (1)
+    {
+        // trigger the sensor to start one TPHG measurement cycle
+        if (bme680_force_measurement(&sensor) == ESP_OK)
+        {
+            // passive waiting until measurement results are available
+            vTaskDelay(duration);
+
+            //"{"TP":7.1,"PR":1031.18,"HM":49.00,"GR":429.56}"
+            // get the results and do something with them
+            if (bme680_get_results_float(&sensor, &values) == ESP_OK)
+                {
+                printf("BME680 Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm\n",
+                        values.temperature, values.humidity, values.pressure, values.gas_resistance);
+                snprintf(tempp, sizeof tempp, "{\"TP\":%.1f,\"PR\":%.2f,\"HM\":%0.2f,\"GR\":%.2f}\n", 
+                        values.temperature, values.pressure, values.humidity,values.gas_resistance);    
+                                
+                esp_mqtt_client_publish( clienta, BME_SENSOR_TOPIC, tempp , 0, 0, 0);
+                print_mqtt(&values);
+               
+                }        
+        }
+        // passive waiting until 1(changed to 5) second is over
+        vTaskDelayUntil(&last_wakeup, pdMS_TO_TICKS(5000));
+    }
+}
 
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 {
     esp_mqtt_client_handle_t client = event->client;
     int msg_id;
+    //static const char *testtopic = "test";
+    static const char *testmsg = "hello from esp32s2 inside handler";
     // your_context_t *context = event->context;
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            msg_id = esp_mqtt_client_publish(client, "/topic/qos1", "data_3", 0, 1, 0);
+            msg_id = esp_mqtt_client_subscribe(client, "BME680_3", 0);
+            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+            msg_id = esp_mqtt_client_publish(client, BME_SENSOR_TOPIC, testmsg, 0, 0, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-
-            msg_id = esp_mqtt_client_subscribe(client, "/topic/qos0", 0);
-            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-            msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
-            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-            msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
-            ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+            //once connected sucessfully to broker, start task for BME680 sensor and include MQTT client
+            xTaskCreatePinnedToCore(&bme680_test, "bme680_test", configMINIMAL_STACK_SIZE * 8, (void *)client, 5, NULL, APP_CPU_NUM);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
             break;
-
         case MQTT_EVENT_SUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
             msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
@@ -323,41 +424,32 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     mqtt_event_handler_cb(event_data);
 }
 
+
 static void mqtt_app_start(void)
 {
+    
     //local broker access, details in header file(secrets.h)
-    /*esp_mqtt_client_config_t mqtt_cfg = {
+    esp_mqtt_client_config_t mqtt_cfg = {
         .uri = LOCAL_MQTT_SERVER,
         .username = LOCAL_MQTT_USERNAME,
         .password = LOCAL_MQTT_PWD,
     };
-    
-   */
-    /*mbedtls_ssl_config conf;
-    mbedtls_ssl_config_init(&conf);
-    esp_crt_bundle_attach(&conf);
-    */
-
+        
+   /*
+   //HIVE cloud broker access, details in header file
    esp_mqtt_client_config_t mqtt_cfg = {
         .uri = HIVE_MQTT_SERVER,
         .username = HIVE_MQTT_USERNAME,
         .password = HIVE_MQTT_PWD,
         .cert_pem = (const char *)isrgrootx1_pem_start,
-        
-
-    };
-
-
+   };
+  */
+  
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
     esp_mqtt_client_start(client);
-    // for testing, subscribe to "test" topic and publish a hello message
-    static const char *testtopic = "test";
-    static const char *testmsg = "hello from esp32s2";
-    esp_mqtt_client_subscribe(client, testtopic, 0);
-    esp_mqtt_client_publish(client, testtopic, testmsg, 0, 0, 0);
+    
 }
-
 
 
 void app_main(void)
@@ -371,15 +463,12 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    // start up wifi connection
     wifi_init_sta();
-    
-    // https testing
-    //xTaskCreate(&https_get_task, "https_get_task", 8192, NULL, 5, NULL);
-
-    
-    ESP_LOGI(TAG, "[MQTT] Startup..");
-    ESP_LOGI(TAG, "[MQTT] Free memory: %d bytes", esp_get_free_heap_size());
-    ESP_LOGI(TAG, "[MQTT] IDF version: %s", esp_get_idf_version());
+        
+    ESP_LOGI(TAG2, "[MQTT] Startup..");
+    ESP_LOGI(TAG2, "[MQTT] Free memory: %d bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG2, "[MQTT] IDF version: %s", esp_get_idf_version());
 
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
@@ -389,7 +478,12 @@ void app_main(void)
     esp_log_level_set("TRANSPORT", ESP_LOG_VERBOSE);
     esp_log_level_set("OUTBOX", ESP_LOG_VERBOSE);
 
-    mqtt_app_start();
+    // initialize i2c interface for BME680
+    ESP_ERROR_CHECK(i2cdev_init());
 
+    // below is for testing connectivity to BME680 without caring about MQTT. Uncomment and comment out matt_app_start()
+    //xTaskCreatePinnedToCore(&bme680_test, "bme680_test", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    
+    mqtt_app_start();
 
 }

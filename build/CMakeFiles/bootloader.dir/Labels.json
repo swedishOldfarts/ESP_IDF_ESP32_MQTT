@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/CMakeFiles/bootloader"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/CMakeFiles/bootloader.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/CMakeFiles/bootloader-complete.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
+		},
+		{
+			"file" : "G:/temp/GitHub/ESP_IDF_ESP32_MQTT/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"bootloader"
+		],
+		"name" : "bootloader"
+	}
+}
